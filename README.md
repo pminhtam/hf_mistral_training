@@ -35,5 +35,5 @@ datasets
 peft
 trl
 bitsandbytes
-
+scipy
 

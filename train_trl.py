@@ -42,7 +42,7 @@ if __name__ == "__main__":
     lora_dropout = 0.1
     lora_r = 64
     max_seq_length = 512
-    model_name = "ckpt/mistralai/Mistral-7B-v0.1"
+    model_name = "mistralai/Mistral-7B-v0.1"
     # dataset_name = "/lustre/scratch/client/scratch/llm_opt_neurips/datasets/helm/gsm"
     dataset_name = "/llm_opt_neurips/datasets/helm/gsm"
     use_4bit = True
@@ -88,8 +88,8 @@ if __name__ == "__main__":
             print("=" * 80)
     # Load the entire model on the GPU 0
     # switch to `device_map = "auto"` for multi-GPU
-    # device_map = {"": 0}
-    device_map = "auto"
+    device_map = {"": 0}
+    # device_map = "auto"
     model = AutoModelForCausalLM.from_pretrained(
         model_name,
         quantization_config=bnb_config,
@@ -103,6 +103,7 @@ if __name__ == "__main__":
         lora_alpha=lora_alpha,
         lora_dropout=lora_dropout,
         r=lora_r,
+        target_modules=["q_proj","v_proj"],
         bias="none",
         task_type="CAUSAL_LM",
     )
@@ -115,8 +116,10 @@ if __name__ == "__main__":
 
     print_trainable_parameters(model)
 
+    # mapped_qa_dataset = qa_dataset.map(
+    #     lambda samples: tokenizer(create_prompt(samples['instruction'] if "instruction" in samples else "", samples['input'], samples['output'])))
     mapped_qa_dataset = qa_dataset.map(
-        lambda samples: tokenizer(create_prompt(samples['instruction'] if "instruction" in samples else "", samples['input'], samples['output'])))
+        lambda samples: {"text":create_prompt(samples['instruction'] if "instruction" in samples else "", samples['input'], samples['output'])})
 
     training_arguments = transformers.TrainingArguments(
         output_dir=output_dir,
