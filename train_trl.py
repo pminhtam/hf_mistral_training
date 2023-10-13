@@ -14,9 +14,9 @@ from datasets import load_dataset
 from peft import LoraConfig, get_peft_model
 from peft import prepare_model_for_kbit_training
 from model import get_model
-from dataloader import create_prompt
+from dataloader import create_prompt, formatting_prompts_func
 from utils import print_trainable_parameters
-from trl import SFTTrainer
+from trl import SFTTrainer, DataCollatorForCompletionOnlyLM
 # os.environ["CUDA_VISIBLE_DEVICES"]="7"
 torch.cuda.is_available()
 
@@ -118,8 +118,19 @@ if __name__ == "__main__":
 
     # mapped_qa_dataset = qa_dataset.map(
     #     lambda samples: tokenizer(create_prompt(samples['instruction'] if "instruction" in samples else "", samples['input'], samples['output'])))
-    mapped_qa_dataset = qa_dataset.map(
-        lambda samples: {"text":create_prompt(samples['instruction'] if "instruction" in samples else "", samples['input'], samples['output'])})
+    # mapped_qa_dataset = qa_dataset.map(
+    #     lambda samples: {"text":create_prompt(samples['instruction'] if "instruction" in samples else "", samples['input'], samples['output'])})
+    response_template = "### Answer:"
+    collator = DataCollatorForCompletionOnlyLM(response_template, tokenizer=tokenizer)
+
+    """
+    instruction_template = "### Human:"
+    response_template = "### Assistant:"
+    collator = DataCollatorForCompletionOnlyLM(instruction_template=instruction_template,
+                                               response_template=response_template, tokenizer=tokenizer, mlm=False)
+    """
+
+
 
     training_arguments = transformers.TrainingArguments(
         output_dir=output_dir,
@@ -137,15 +148,18 @@ if __name__ == "__main__":
         group_by_length=group_by_length,
         lr_scheduler_type=lr_scheduler_type,
     )
+    # https://huggingface.co/docs/trl/main/en/sft_trainer#advanced-usage
     trainer = SFTTrainer(
         model=model,
-        train_dataset=mapped_qa_dataset["train"],
+        train_dataset=qa_dataset["train"],
+        formatting_func=formatting_prompts_func,
         peft_config=peft_config,
-        dataset_text_field="text",
+        # dataset_text_field="text",
         max_seq_length=max_seq_length,
         tokenizer=tokenizer,
         args=training_arguments,
-        packing=packing,
+        # packing=packing,
+        data_collator=collator,
     )
     trainer.train()
     trainer.save_model(output_dir)
