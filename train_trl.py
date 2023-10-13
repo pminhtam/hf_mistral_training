@@ -23,13 +23,11 @@ torch.cuda.is_available()
 # pip install git+https://github.com/huggingface/transformers
 def parse_args():
     parser = argparse.ArgumentParser(description="Mistral training")
-    parser.add_argument('--lr', type=float, default=2e-4, help="learning_rate")
-    parser.add_argument('--lora_r', type=int, default=64, help="learning_rate")
-    parser.add_argument('--lora_alpha', type=int, default=16, help="learning_rate")
-
-
+    parser.add_argument('--dataset', type=str, default="/llm_opt_neurips/datasets/synthetic/v2/raw_data", help="dataset path")
+    parser.add_argument('--output', type=str, default="./trl_results_v2/", help="output_dir path")
     return parser.parse_args()
 if __name__ == "__main__":
+    args = parse_args()
     ########################################################################
     ################################ CONFIGURATION #########################
     per_device_train_batch_size = 4
@@ -44,14 +42,16 @@ if __name__ == "__main__":
     max_seq_length = 512
     model_name = "mistralai/Mistral-7B-v0.1"
     # dataset_name = "/lustre/scratch/client/scratch/llm_opt_neurips/datasets/helm/gsm"
-    dataset_name = "/llm_opt_neurips/datasets/helm/gsm"
+    # dataset_name = "/llm_opt_neurips/datasets/helm/gsm"
+    # dataset_name = "/llm_opt_neurips/datasets/synthetic/v2/raw_data"
+    dataset_name = args.dataset
     use_4bit = True
     use_nested_quant = False
     bnb_4bit_compute_dtype = "float16"
     bnb_4bit_quant_type = "nf4"
     num_train_epochs = 10
     fp16 = False
-    bf16 = False
+    bf16 = True
     packing = False
     gradient_checkpointing = True
     optim = "paged_adamw_32bit"
@@ -90,11 +90,13 @@ if __name__ == "__main__":
     # switch to `device_map = "auto"` for multi-GPU
     device_map = {"": 0}
     # device_map = "auto"
+    # device_map = "balanced"
     model = AutoModelForCausalLM.from_pretrained(
         model_name,
         quantization_config=bnb_config,
         device_map=device_map,
-        use_auth_token=True
+        torch_dtype=torch.bfloat16,
+        # use_auth_token=True
     )
     # check: https://github.com/huggingface/transformers/pull/24906
     model.config.pretraining_tp = 1
@@ -113,14 +115,18 @@ if __name__ == "__main__":
     # Fix weird overflow issue with fp16 training
     tokenizer.padding_side = "right"
     model.config.use_cache = False # silence the warnings. Please re-enable for inference!
-
+    # prepare model for training
+    # model = prepare_model_for_kbit_training(model)
+    model = get_peft_model(model, peft_config)
+    # max_seq_length = tokenizer.model_max_length
+    # print("max_seq_length   : ", max_seq_length)
     print_trainable_parameters(model)
 
     # mapped_qa_dataset = qa_dataset.map(
     #     lambda samples: tokenizer(create_prompt(samples['instruction'] if "instruction" in samples else "", samples['input'], samples['output'])))
     # mapped_qa_dataset = qa_dataset.map(
     #     lambda samples: {"text":create_prompt(samples['instruction'] if "instruction" in samples else "", samples['input'], samples['output'])})
-    response_template = "### Answer:"
+    response_template = "####Answer:"
     collator = DataCollatorForCompletionOnlyLM(response_template, tokenizer=tokenizer)
 
     """

@@ -10,7 +10,9 @@ python train.py
 ```
 
 Train with `trl`
-
+```shell
+python train_trl.py  --dataset /llm_opt_neurips/datasets/synthetic/v2/raw_data/ --output ./trl_results_v2
+```
 
 ## Infer 
 
