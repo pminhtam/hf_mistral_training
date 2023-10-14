@@ -7,14 +7,17 @@ class CastOutputToFloat(nn.Sequential):
     def forward(self, x): return super().forward(x).to(torch.float32)
 
 
-def get_model(model_name = "meta-llama/Llama-2-7b-chat-hf"):
+def get_model(bnb_config, model_name = "meta-llama/Llama-2-7b-chat-hf"):
     # model_name = "bigscience/bloom-3b"
     # model_name = "meta-llama/Llama-2-7b-chat-hf"
 
     model = AutoModelForCausalLM.from_pretrained(
         model_name,
-        torch_dtype=torch.float16,
+        torch_dtype=torch.bfloat16,
         device_map='auto',
+        # peft_config=lora_config,
+        quantization_config=bnb_config,
+
     )
     # model_id = "meta-llama/Llama-2–7b-chat-hf"
     # bnb_config = BitsAndBytesConfig(
@@ -37,9 +40,9 @@ def get_model(model_name = "meta-llama/Llama-2-7b-chat-hf"):
         param.data = param.data.to(torch.float32)
 
     model.gradient_checkpointing_enable()  # reduce number of stored activations
-    model.enable_input_require_grads()
+    # model.enable_input_require_grads()
 
 
     model.lm_head = CastOutputToFloat(model.lm_head)
-    model.gradient_checkpointing_enable()
+    # model.gradient_checkpointing_enable()
     return model, tokenizer

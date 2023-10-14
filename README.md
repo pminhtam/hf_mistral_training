@@ -3,10 +3,10 @@
 
 ## Train 
 
-Train with `transformers.Trainer`
-
+[//]: # (Train with `transformers.Trainer`)
+Train with dataloader like lit-gpt
 ```shell
-python train.py
+python train.py  --dataset /llm_opt_neurips/datasets/synthetic/v2/raw_data/ --output ./trl_results_v2/ --model ckpt/mistralai/Mistral-7B-Instruct-v0.1/ --max_length 512
 ```
 
 Train with `trl`
