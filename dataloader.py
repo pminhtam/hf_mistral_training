@@ -1,7 +1,18 @@
 import torch
-from datasets import load_dataset
+from datasets import load_dataset, Dataset
 from typing import Dict, List, Literal, Optional, Tuple
+import json
 
+def load_dataloader(data_path):
+  """
+  Read JSONL -> convert HF datasets
+  """
+  data = []
+  with open(f'{data_path}/cnn_prompt_data.jsonl') as fin:
+    for line in fin:
+      data.append(json.loads(line))
+  dataset = Dataset.from_list(data)
+  return dataset
 
 def create_prompt(context, question, answer):
   if len(answer["text"]) < 1:
@@ -22,6 +33,10 @@ def formatting_prompts_func(example):
     # print(len(text))
     output_texts.append(text)
   return output_texts
+
+def new_formatting_prompts_func(example):
+  example['text'] = [inst + inp + out for inst, inp, out in zip(example['instruction'], example['input'], example['output'])]
+  return example
 
 def get_longest_seq_length(data: List[Dict]) -> Tuple[int, int]:
   # find out the minimum max_seq_length required during fine-tuning (saves memory!)
