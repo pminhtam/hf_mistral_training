@@ -132,3 +132,6 @@ work_dirs/
 *.txt
 *.csv
 tmp/
+
+data
+train_ckpt
