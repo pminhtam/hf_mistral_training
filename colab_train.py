@@ -19,6 +19,25 @@ from trl import SFTTrainer # For supervised finetuning
 
 from dataloader import load_dataloader, new_formatting_prompts_func
 
+def get_lora_layer_config(lora_query = True, lora_key = False, lora_value = True, lora_projection = False, lora_mlp = False, lora_head = False):
+    configs = []
+    if lora_query:
+        configs.append('q_proj')
+    if lora_key:
+        configs.append('k_proj')
+    if lora_value:
+        configs.append('v_proj')
+    if lora_projection:
+        configs.append('out_proj')
+    if lora_mlp:
+        configs.append('gate_proj')
+        configs.append("up_proj")
+        configs.append("down_proj")
+    if lora_head:
+        configs.append('lm_head')
+    
+    return configs
+
 if __name__ == "__main__":
 
     data_path = 'data'
@@ -34,13 +53,20 @@ if __name__ == "__main__":
     ################################################################################
 
     # LoRA attention dimension
-    lora_r = 64
+    lora_r = 16
 
     # Alpha parameter for LoRA scaling
-    lora_alpha = 16
+    lora_alpha = 32
 
     # Dropout probability for LoRA layers
     lora_dropout = 0.05
+
+    lora_query = True
+    lora_key = True
+    lora_value = True
+    lora_projection = True
+    lora_mlp = True
+    lora_head = True
 
     ################################################################################
     # bitsandbytes parameters
@@ -66,20 +92,18 @@ if __name__ == "__main__":
     output_dir = "./train_ckpt/results"
 
     # Number of training epochs
-    num_train_epochs = 1
+    num_train_epochs = 3
 
     # Enable fp16/bf16 training (set bf16 to True with an A100)
     fp16 = False
     bf16 = True
 
     # Batch size per GPU for training
+    batch_size = 16
     per_device_train_batch_size = 1
 
-    # Batch size per GPU for evaluation
-    per_device_eval_batch_size = 4
-
     # Number of update steps to accumulate the gradients for
-    gradient_accumulation_steps = 1
+    gradient_accumulation_steps = batch_size // per_device_train_batch_size
 
     # Enable gradient checkpointing
     gradient_checkpointing = True
@@ -88,13 +112,13 @@ if __name__ == "__main__":
     max_grad_norm = 0.3
 
     # Initial learning rate (AdamW optimizer)
-    learning_rate = 2e-4
+    learning_rate = 1e-5
 
     # Weight decay to apply to all layers except bias/LayerNorm weights
-    weight_decay = 0.001
+    weight_decay = 0.01
 
     # Optimizer to use
-    optim = "paged_adamw_32bit"
+    optim = "paged_adamw_8bit"
 
     # Learning rate schedule (constant a bit better than cosine)
     lr_scheduler_type = "constant"
@@ -103,24 +127,24 @@ if __name__ == "__main__":
     max_steps = -1
 
     # Ratio of steps for a linear warmup (from 0 to learning rate)
-    warmup_ratio = 0.03
+    warmup_ratio = 0.1
 
     # Group sequences into batches with same length
     # Saves memory and speeds up training considerably
     group_by_length = True
 
     # Save checkpoint every X updates steps
-    save_steps = 25
+    save_steps = 1000
 
     # Log every X updates steps
-    logging_steps = 25
+    logging_steps = 1000
 
     ################################################################################
     # SFT parameters
     ################################################################################
 
     # Maximum sequence length to use
-    max_seq_length = None
+    max_seq_length = 1024
 
     # Pack multiple short examples in the same input sequence to increase efficiency
     packing = False
@@ -142,11 +166,12 @@ if __name__ == "__main__":
     base_model = AutoModelForCausalLM.from_pretrained(
         model_name,
         quantization_config=bnb_config,
-        device_map={"": 0}
+        device_map=device_map
     )
 
     base_model.config.use_cache = False
     base_model.config.pretraining_tp = 1
+    base_model.config.window = 256
 
     # Load MistralAI tokenizer
     print('Loading tokenizer ...')
@@ -156,20 +181,12 @@ if __name__ == "__main__":
 
     # Load LoRA configuration
     print('Setting up LoRA config ...')
+    target_modules = get_lora_layer_config(lora_query, lora_key, lora_value, lora_projection, lora_mlp, lora_head)
     peft_config = LoraConfig(
         lora_alpha=lora_alpha,
         lora_dropout=lora_dropout,
         r=lora_r,
-        target_modules=[
-            "q_proj",
-            "k_proj",
-            "v_proj",
-            "o_proj",
-            "gate_proj",
-            "up_proj",
-            "down_proj",
-            "lm_head",
-        ],
+        target_modules=target_modules,
         bias="none",
         task_type="CAUSAL_LM",
     )
@@ -193,6 +210,7 @@ if __name__ == "__main__":
         warmup_ratio=warmup_ratio,
         group_by_length=group_by_length,
         lr_scheduler_type=lr_scheduler_type,
+        save_total_limit=2,
     )
 
     # Set supervised fine-tuning parameters
