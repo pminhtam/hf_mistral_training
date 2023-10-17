@@ -43,7 +43,7 @@ def new_formatting_prompts_func(example):
 
 def get_longest_seq_length(data: List[Dict]) -> Tuple[int, int]:
   # find out the minimum max_seq_length required during fine-tuning (saves memory!)
-  lengths = [len(d["instruction"]) + len(d["input"]) + len(d["output"]) for d in data]
+  lengths = [len(d["input_ids"]) for d in data]
   longest_seq_length = max(lengths)
   longest_seq_ix = lengths.index(longest_seq_length)
   return longest_seq_length, longest_seq_ix

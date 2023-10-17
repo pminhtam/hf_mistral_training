@@ -6,6 +6,7 @@ import argparse
 import time
 import torch.nn as nn
 # import bitsandbytes as bnb
+from accelerate import Accelerator
 from transformers import AutoTokenizer, AutoConfig, AutoModelForCausalLM, BitsAndBytesConfig
 import os
 import transformers
@@ -103,7 +104,8 @@ def train(
         t1 = time.perf_counter()
         total_lengths += input_ids.size(1)
 
-        if iter_num % (save_interval//5) == 0:
+        # if iter_num % (save_interval//5) == 0:
+        if iter_num % (warmup_steps) == 0:
             print(
                 f"iter {iter_num} step {step_count}: loss {loss.item():.4f}, iter time:"
                 f" {(t1 - iter_t0) * 1000:.2f}ms{' (optimizer.step)' if not is_accumulating else ''}"
@@ -131,14 +133,14 @@ if __name__ == "__main__":
     max_seq_length = args.max_length
     learning_rate = 1e-4
     weight_decay = 0.01
-    max_iters = 1000
-    batch_size = 16
-    micro_batch_size = 2
-    warmup_steps = 100
-    save_interval = 100
+    max_iters = 300000
+    batch_size = 64
+    micro_batch_size = 1
+    warmup_steps = 500
+    save_interval = 50000
     lora_alpha = 16
-    lora_dropout = 0.1
-    lora_r = 2
+    lora_dropout = 0.05
+    lora_r = 8
     use_4bit = True
     use_nested_quant = False
     bnb_4bit_compute_dtype = "float16"
@@ -149,7 +151,6 @@ if __name__ == "__main__":
     # data_path = "/lustre/scratch/client/scratch/llm_opt_neurips/datasets/helm/gsm"
     # data_path = "/lustre/scratch/client/scratch/llm_opt_neurips/datasets/synthetic/v2/raw_data"
     qa_dataset = load_dataset(dataset_name)
-    # longest_seq_length, longest_seq_ix = get_longest_seq_length(qa_dataset["train"])
     # print(longest_seq_length)
     # print(longest_seq_ix)
     # print(qa_dataset)
@@ -157,7 +158,14 @@ if __name__ == "__main__":
     config = LoraConfig(
         r=lora_r,
         lora_alpha=lora_alpha,
-        target_modules=["q_proj","v_proj"],
+        target_modules=["q_proj","v_proj",
+                        "k_proj",
+                        # "o_proj",
+                        "gate_proj",
+                        "up_proj",
+                        "down_proj",
+                        # "mlp",
+                        "lm_head"],
         lora_dropout=lora_dropout,
         bias="none",
         task_type="CAUSAL_LM"
@@ -168,17 +176,24 @@ if __name__ == "__main__":
         bnb_4bit_use_double_quant=use_nested_quant,
     )
     model, tokenizer = get_model(bnb_config, model_name)
+    print_trainable_parameters(model)
 
     model = prepare_model_for_kbit_training(model)
 
 
 
     model = get_peft_model(model, config)
+    print(model.num_parameters())
     print_trainable_parameters(model)
 
 
     train_data = qa_dataset.map(lambda samples: {"input_ids":tokenizer.encode(samples['instruction']+samples['input'],max_length=max_seq_length), "labels": tokenizer.encode(samples['output'],max_length=max_seq_length)})
-
+    longest_seq_length, longest_seq_ix = get_longest_seq_length(train_data["train"])
+    # print(longest_seq_length)
+    # print(longest_seq_ix)
+    print(
+        f"The longest sequence length in the train data is {longest_seq_length}, at {longest_seq_ix}"
+    )
     # train_data = qa_dataset.map(lambda samples: {"input_ids":tokenizer.encode(samples['instruction']+samples['input'],max_length=2048), "labels": tokenizer.encode(samples['instruction']+samples['input']+samples['output'],max_length=2048)})
     train_data = train_data['train']
     # from datasets import load_dataset
@@ -189,12 +204,21 @@ if __name__ == "__main__":
     trainable_params = [p for p in model.parameters() if p.requires_grad]
 
     # if False:
-    #     import bitsandbytes as bnb
-    #     optimizer = bnb.optim.PagedAdamW(trainable_params, lr=learning_rate, weight_decay=weight_decay)
+    import bitsandbytes as bnb
+    # optimizer = bnb.optim.PagedAdamW(trainable_params, lr=learning_rate, weight_decay=weight_decay)
+    optimizer = bnb.optim.Adam8bit(
+                        trainable_params,
+                        lr=learning_rate,
+                    )
     # else:
-    optimizer = torch.optim.AdamW(trainable_params, lr=learning_rate, weight_decay=weight_decay)
+    # optimizer = torch.optim.AdamW(trainable_params, lr=learning_rate, weight_decay=weight_decay)
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=max_iters // batch_size)
     gradient_accumulation_iters = batch_size // micro_batch_size
+    accelerator = Accelerator(mixed_precision="bf16")
+    model,optimizer, scheduler = accelerator.prepare(model,optimizer, scheduler)
+    print_trainable_parameters(model)
+    print(model)
+
     train(
         model,
         optimizer,
