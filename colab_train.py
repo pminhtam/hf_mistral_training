@@ -18,6 +18,7 @@ from transformers import (
 from trl import SFTTrainer # For supervised finetuning
 
 from dataloader import load_dataloader, new_formatting_prompts_func
+import argparse, os
 
 def get_lora_layer_config(lora_query = True, lora_key = False, lora_value = True, lora_projection = False, lora_mlp = False, lora_head = False):
     configs = []
@@ -38,9 +39,40 @@ def get_lora_layer_config(lora_query = True, lora_key = False, lora_value = True
     
     return configs
 
+def get_args():
+    parser = argparse.ArgumentParser(description='Take hyperparameter')
+    parser.add_argument('--data', type=str, help='data path', default='data')
+    parser.add_argument('--lr', type=float, help='initial learning rate', default=5e-6)
+    parser.add_argument('--lr_scheduler', type=str, help='learning rate scheduler', default='constant')
+    parser.add_argument('--epochs', type=int, help='number of training epochs', default=2)
+    parser.add_argument('--exp_name', type=str, help='experiment name and path to save checkpoint', default='default')
+    args = parser.parse_args()
+    return args
+
 if __name__ == "__main__":
 
-    data_path = 'data'
+    ################################################################################
+    # Tunable hyperaparameter
+    ################################################################################
+
+    args = get_args()
+    if not os.path.exists(f'train_ckpt/{args.exp_name}'):
+        os.makedirs(f'train_ckpt/{args.exp_name}')
+    with open(f'train_ckpt/{args.exp_name}/args.txt', 'w') as fout:
+        fout.write(str(args))
+
+    data_path = args.data
+    # Initial learning rate (AdamW optimizer)
+    learning_rate = args.lr
+    # Learning rate schedule (constant a bit better than cosine)
+    lr_scheduler_type = args.lr_scheduler
+    # Number of training epochs
+    num_train_epochs = args.epochs
+    # Output directory where the model predictions and checkpoints will be stored
+    output_dir = f"./train_ckpt/{args.exp_name}"
+    # save final trained lora model
+    trained_model_path = f'train_ckpt/{args.exp_name}/saved'
+
     model_name = "mistralai/Mistral-7B-v0.1"
 
     print("Proceeding dataset ...")
@@ -88,12 +120,6 @@ if __name__ == "__main__":
     # TrainingArguments parameters
     ################################################################################
 
-    # Output directory where the model predictions and checkpoints will be stored
-    output_dir = "./train_ckpt/results"
-
-    # Number of training epochs
-    num_train_epochs = 1
-
     # Enable fp16/bf16 training (set bf16 to True with an A100)
     fp16 = False
     bf16 = True
@@ -111,17 +137,11 @@ if __name__ == "__main__":
     # Maximum gradient normal (gradient clipping)
     max_grad_norm = 0.3
 
-    # Initial learning rate (AdamW optimizer)
-    learning_rate = 1e-5
-
     # Weight decay to apply to all layers except bias/LayerNorm weights
     weight_decay = 0.01
 
     # Optimizer to use
     optim = "paged_adamw_8bit"
-
-    # Learning rate schedule (constant a bit better than cosine)
-    lr_scheduler_type = "constant"
 
     # Number of training steps (overrides num_train_epochs)
     max_steps = -1
@@ -227,3 +247,5 @@ if __name__ == "__main__":
     )
 
     trainer.train()
+
+    trainer.model.save_pretrained(trained_model_path)
