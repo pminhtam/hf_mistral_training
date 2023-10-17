@@ -8,9 +8,12 @@ def load_dataloader(data_path):
   Read JSONL -> convert HF datasets
   """
   data = []
-  with open(f'{data_path}/cnn_prompt_data.jsonl') as fin:
-    for line in fin:
-      data.append(json.loads(line))
+  domains = ['chat', 'cnn', 'complexqa', 'complexqa1', 'dolly', 'math', 'science']
+  for domain in domains:
+    with open(f'{data_path}/mistral_{domain}_prompt_data.jsonl') as fin:
+      for line in fin:
+        _data = json.loads(line)
+        data.append({'instruction': str(_data['instruction']), 'input': str(_data['input']), 'output': str(_data['output'])})
   dataset = Dataset.from_list(data)
   return dataset
 
@@ -35,7 +38,7 @@ def formatting_prompts_func(example):
   return output_texts
 
 def new_formatting_prompts_func(example):
-  example['text'] = [inst + inp + out for inst, inp, out in zip(example['instruction'], example['input'], example['output'])]
+  example['text'] = [str(inst) + str(inp) + str(out) for inst, inp, out in zip(example['instruction'], example['input'], example['output'])]
   return example
 
 def get_longest_seq_length(data: List[Dict]) -> Tuple[int, int]:

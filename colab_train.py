@@ -92,7 +92,7 @@ if __name__ == "__main__":
     output_dir = "./train_ckpt/results"
 
     # Number of training epochs
-    num_train_epochs = 3
+    num_train_epochs = 1
 
     # Enable fp16/bf16 training (set bf16 to True with an A100)
     fp16 = False
@@ -195,7 +195,7 @@ if __name__ == "__main__":
     print('Setting up training configurations ...')
     training_arguments = TrainingArguments(
         output_dir=output_dir,
-        num_train_epochs=num_train_epochs,
+        num_train_epochs=1,
         per_device_train_batch_size=per_device_train_batch_size,
         gradient_accumulation_steps=gradient_accumulation_steps,
         optim=optim,
@@ -206,7 +206,7 @@ if __name__ == "__main__":
         fp16=fp16,
         bf16=bf16,
         max_grad_norm=max_grad_norm,
-        max_steps=100, # the number of training steps the model will take
+        max_steps=max_steps, # the number of training steps the model will take
         warmup_ratio=warmup_ratio,
         group_by_length=group_by_length,
         lr_scheduler_type=lr_scheduler_type,
