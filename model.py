@@ -183,9 +183,9 @@ def get_model(bnb_config, model_name = "meta-llama/Llama-2-7b-chat-hf"):
     # model.enable_input_require_grads()
 
     # model.config.window = 256
-    model.forward = types.MethodType(
-        forward_new, model
-    )
+    # model.forward = types.MethodType(
+    #     forward_new, model
+    # )
     # model.lm_head = CastOutputToFloat(model.lm_head)
     # model.gradient_checkpointing_enable()
     # model = WrapMistral(model)
