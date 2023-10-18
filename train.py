@@ -20,7 +20,7 @@ import lightning as L
 import bitsandbytes as bnb
 
 
-from dataloader import create_prompt, get_longest_seq_length, get_batch
+from dataloader import create_prompt, get_longest_seq_length, get_batch, load_dataloader_all
 from utils import print_trainable_parameters
 from losses import chunked_cross_entropy
 
@@ -141,7 +141,7 @@ if __name__ == "__main__":
     max_seq_length = args.max_length
     learning_rate = 1e-4
     weight_decay = 0.01
-    max_iters = 300000
+    max_iters = 150000
     batch_size = 16
     micro_batch_size = 1
     warmup_steps = 500
@@ -158,7 +158,7 @@ if __name__ == "__main__":
     # data_path = "/home/ubuntu/workspace/tampm2/lit-gpt/datasets/GAIR/lima"
     # data_path = "/lustre/scratch/client/scratch/llm_opt_neurips/datasets/helm/gsm"
     # data_path = "/lustre/scratch/client/scratch/llm_opt_neurips/datasets/synthetic/v2/raw_data"
-    qa_dataset = load_dataset(dataset_name)
+    qa_dataset = load_dataloader_all(dataset_name)
     # print(longest_seq_length)
     # print(longest_seq_ix)
     # print(qa_dataset)
@@ -198,14 +198,14 @@ if __name__ == "__main__":
 
 
     train_data = qa_dataset.map(lambda samples: {"input_ids":tokenizer.encode(samples['instruction']+samples['input'],max_length=max_seq_length), "labels": tokenizer.encode(samples['output'],max_length=max_seq_length)})
-    longest_seq_length, longest_seq_ix = get_longest_seq_length(train_data["train"])
+    longest_seq_length, longest_seq_ix = get_longest_seq_length(train_data)
     # print(longest_seq_length)
     # print(longest_seq_ix)
     print(
         f"The longest sequence length in the train data is {longest_seq_length}, at {longest_seq_ix}"
     )
     # train_data = qa_dataset.map(lambda samples: {"input_ids":tokenizer.encode(samples['instruction']+samples['input'],max_length=2048), "labels": tokenizer.encode(samples['instruction']+samples['input']+samples['output'],max_length=2048)})
-    train_data = train_data['train']
+    train_data = train_data
     # from datasets import load_dataset
     # data = load_dataset("Abirate/english_quotes")
     # mapped_qa_dataset = data.map(lambda samples: tokenizer(samples["quote"]), batched=True)
