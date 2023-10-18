@@ -1,7 +1,7 @@
 python colab_train.py \
-    --data data/epoch2 \
+    --data data/epoch3 \
     --lr 5e-6 \
     --lr_scheduler constant \
-    --epochs 2 \
+    --epochs 3 \
     --neftune 5 \
-    --exp_name default
+    --exp_name epoch3

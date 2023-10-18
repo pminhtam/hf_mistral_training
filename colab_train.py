@@ -45,6 +45,7 @@ def get_args():
     parser.add_argument('--lr', type=float, help='initial learning rate', default=5e-6)
     parser.add_argument('--lr_scheduler', type=str, help='learning rate scheduler', default='constant')
     parser.add_argument('--epochs', type=int, help='number of training epochs', default=2)
+    parser.add_argument('--neftune', type=int, help='neftune noise integer value', default=5)
     parser.add_argument('--exp_name', type=str, help='experiment name and path to save checkpoint', default='default')
     args = parser.parse_args()
     return args
@@ -68,6 +69,8 @@ if __name__ == "__main__":
     lr_scheduler_type = args.lr_scheduler
     # Number of training epochs
     num_train_epochs = args.epochs
+    # neftune noise
+    neftune_noises = args.neftune
     # Output directory where the model predictions and checkpoints will be stored
     output_dir = f"./train_ckpt/{args.exp_name}"
     # save final trained lora model
@@ -215,7 +218,7 @@ if __name__ == "__main__":
     print('Setting up training configurations ...')
     training_arguments = TrainingArguments(
         output_dir=output_dir,
-        num_train_epochs=1,
+        num_train_epochs=num_train_epochs,
         per_device_train_batch_size=per_device_train_batch_size,
         gradient_accumulation_steps=gradient_accumulation_steps,
         optim=optim,
@@ -226,7 +229,7 @@ if __name__ == "__main__":
         fp16=fp16,
         bf16=bf16,
         max_grad_norm=max_grad_norm,
-        max_steps=max_steps, # the number of training steps the model will take
+        max_steps=32, # the number of training steps the model will take
         warmup_ratio=warmup_ratio,
         group_by_length=group_by_length,
         lr_scheduler_type=lr_scheduler_type,
@@ -244,6 +247,7 @@ if __name__ == "__main__":
         tokenizer=tokenizer,
         args=training_arguments,
         packing=packing,
+        neftune_noise_alpha=neftune_noises,
     )
 
     trainer.train()
