@@ -47,6 +47,10 @@ def get_args():
     parser.add_argument('--epochs', type=int, help='number of training epochs', default=2)
     parser.add_argument('--neftune', type=int, help='neftune noise integer value', default=5)
     parser.add_argument('--exp_name', type=str, help='experiment name and path to save checkpoint', default='default')
+    parser.add_argument('--lora_r', type=int, help='LoRA rank', default=64)
+    parser.add_argument('--warmup_step', type=int, help='warmup step', default=0)
+    parser.add_argument('--warmup_ratio', type=float, help='warmup ratio', default=0.0)
+    parser.add_argument('--batch_size', type=int, help='global batch size', default=16)
     args = parser.parse_args()
     return args
 
@@ -71,10 +75,21 @@ if __name__ == "__main__":
     num_train_epochs = args.epochs
     # neftune noise
     neftune_noises = args.neftune
+    # LoRA attention dimension
+    lora_r = args.lora_r
     # Output directory where the model predictions and checkpoints will be stored
     output_dir = f"./train_ckpt/{args.exp_name}"
     # save final trained lora model
     trained_model_path = f'train_ckpt/{args.exp_name}/saved'
+    # Ratio of steps for a linear warmup (from 0 to learning rate)
+    warmup_ratio = args.warmup_ratio
+    warmup_step = args.warmup_step
+    # Batch size per GPU for training
+    batch_size = args.batch_size
+    per_device_train_batch_size = 1
+
+    # Number of update steps to accumulate the gradients for
+    gradient_accumulation_steps = batch_size // per_device_train_batch_size
 
     model_name = "mistralai/Mistral-7B-v0.1"
 
@@ -86,9 +101,6 @@ if __name__ == "__main__":
     ################################################################################
     # QLoRA parameters
     ################################################################################
-
-    # LoRA attention dimension
-    lora_r = 16
 
     # Alpha parameter for LoRA scaling
     lora_alpha = 32
@@ -127,13 +139,6 @@ if __name__ == "__main__":
     fp16 = False
     bf16 = True
 
-    # Batch size per GPU for training
-    batch_size = 16
-    per_device_train_batch_size = 1
-
-    # Number of update steps to accumulate the gradients for
-    gradient_accumulation_steps = batch_size // per_device_train_batch_size
-
     # Enable gradient checkpointing
     gradient_checkpointing = True
 
@@ -148,9 +153,6 @@ if __name__ == "__main__":
 
     # Number of training steps (overrides num_train_epochs)
     max_steps = -1
-
-    # Ratio of steps for a linear warmup (from 0 to learning rate)
-    warmup_ratio = 0.1
 
     # Group sequences into batches with same length
     # Saves memory and speeds up training considerably
@@ -229,8 +231,9 @@ if __name__ == "__main__":
         fp16=fp16,
         bf16=bf16,
         max_grad_norm=max_grad_norm,
-        max_steps=32, # the number of training steps the model will take
+        max_steps=max_steps, # the number of training steps the model will take
         warmup_ratio=warmup_ratio,
+        warmup_steps=warmup_step,
         group_by_length=group_by_length,
         lr_scheduler_type=lr_scheduler_type,
         save_total_limit=2,
