@@ -1,0 +1,4 @@
+python train.py  --dataset /llm_opt_neurips/datasets/synthetic/v2/raw_data/ --output ./mistral_lit_results_v2/ --model ckpt/mistralai/Mistral-7B-v0.1/ --max_length  1500
+python train.py  --dataset /llm_opt_neurips/datasets/synthetic/v3/raw_data/ --output ./mistral_lit_results_v3/ --model ckpt/mistralai/Mistral-7B-v0.1/ --max_length  1500
+python train.py  --dataset /llm_opt_neurips/datasets/mistral_hf/epoch2/ --output ./mistral_lit_results_v4_2/ --model ckpt/mistralai/Mistral-7B-v0.1/ --max_length  1500
+python train.py  --dataset /llm_opt_neurips/datasets/mistral_hf/epoch3/ --output ./mistral_lit_results_v4_3/ --model ckpt/mistralai/Mistral-7B-v0.1/ --max_length  1500
