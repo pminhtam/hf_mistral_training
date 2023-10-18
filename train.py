@@ -17,6 +17,7 @@ from peft import LoraConfig, get_peft_model
 from peft import prepare_model_for_kbit_training
 from model import get_model
 import lightning as L
+import bitsandbytes as bnb
 
 
 from dataloader import create_prompt, get_longest_seq_length, get_batch
@@ -27,7 +28,7 @@ from losses import chunked_cross_entropy
 torch.cuda.is_available()
 
 # pip install git+https://github.com/huggingface/transformers
-torch.set_float32_matmul_precision('medium')
+torch.set_float32_matmul_precision('high')
 def parse_args():
     parser = argparse.ArgumentParser(description="Mistral training")
     parser.add_argument('--dataset', type=str, default="/llm_opt_neurips/datasets/synthetic/v2/raw_data", help="dataset path")
@@ -96,6 +97,7 @@ def train(
             loss = chunked_cross_entropy(logits, targets[..., 1:].to(model.device),128)
             # loss = chunked_cross_entropy(logits[0][...,1:], targets[..., 1:].to(model.device))
             # loss = chunked_cross_entropy(logits, targets.to(model.device),0)
+            # loss = chunked_cross_entropy(logits[0], targets.to(model.device),0)
             # print(loss)
             fabric.backward(loss / gradient_accumulation_iters)
             # loss.backward()
@@ -140,16 +142,16 @@ if __name__ == "__main__":
     learning_rate = 1e-4
     weight_decay = 0.01
     max_iters = 300000
-    batch_size = 64
+    batch_size = 16
     micro_batch_size = 1
     warmup_steps = 500
     save_interval = 50000
     lora_alpha = 16
     lora_dropout = 0.05
-    lora_r = 8
+    lora_r = 16
     use_4bit = True
     use_nested_quant = False
-    bnb_4bit_compute_dtype = "float16"
+    bnb_4bit_compute_dtype = "bfloat16"
     bnb_4bit_quant_type = "nf4"
     # model, tokenizer = get_model("/home/ubuntu/workspace/tampm2/lit-gpt/checkpoints/mistralai/Mistral-7B-Instruct-v0.1")
     # model, tokenizer = get_model("mistralai/Mistral-7B-v0.1")
@@ -181,6 +183,7 @@ if __name__ == "__main__":
         load_in_4bit=use_4bit,
         bnb_4bit_quant_type=bnb_4bit_quant_type,
         bnb_4bit_use_double_quant=use_nested_quant,
+        bnb_4bit_compute_dtype=bnb_4bit_compute_dtype,
     )
     model, tokenizer = get_model(bnb_config, model_name)
     print_trainable_parameters(model)
@@ -213,16 +216,16 @@ if __name__ == "__main__":
     # if False:
     # import bitsandbytes as bnb
     # optimizer = bnb.optim.PagedAdamW(trainable_params, lr=learning_rate, weight_decay=weight_decay)
-    # optimizer = bnb.optim.Adam8bit(
-    #                     trainable_params,
-    #                     lr=learning_rate,
-    #                 )
+    optimizer = bnb.optim.Adam8bit(
+                        trainable_params,
+                        lr=learning_rate, weight_decay=weight_decay
+                    )
     # else:
-    optimizer = torch.optim.AdamW(trainable_params, lr=learning_rate, weight_decay=weight_decay)
+    # optimizer = torch.optim.AdamW(trainable_params, lr=learning_rate, weight_decay=weight_decay)
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=max_iters // batch_size)
     gradient_accumulation_iters = batch_size // micro_batch_size
-    accelerator = Accelerator(mixed_precision="bf16")
-    model,optimizer, scheduler = accelerator.prepare(model,optimizer, scheduler)
+    # accelerator = Accelerator(mixed_precision="bf16")
+    # model,optimizer, scheduler = accelerator.prepare(model,optimizer, scheduler)
     print_trainable_parameters(model)
     print(model)
     strategy = "auto"
