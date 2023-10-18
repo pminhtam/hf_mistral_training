@@ -16,9 +16,11 @@ from pathlib import Path
 from peft import LoraConfig, get_peft_model
 from peft import prepare_model_for_kbit_training
 from model import get_model
+import lightning as L
+import bitsandbytes as bnb
 
 
-from dataloader import create_prompt, get_longest_seq_length, get_batch
+from dataloader import create_prompt, get_longest_seq_length, get_batch, load_dataloader_all
 from utils import print_trainable_parameters
 from losses import chunked_cross_entropy
 
@@ -26,7 +28,7 @@ from losses import chunked_cross_entropy
 torch.cuda.is_available()
 
 # pip install git+https://github.com/huggingface/transformers
-
+torch.set_float32_matmul_precision('high')
 def parse_args():
     parser = argparse.ArgumentParser(description="Mistral training")
     parser.add_argument('--dataset', type=str, default="/llm_opt_neurips/datasets/synthetic/v2/raw_data", help="dataset path")
@@ -46,8 +48,12 @@ def train(
         gradient_accumulation_iters,
         micro_batch_size,
         save_interval,
-        max_seq_length
+        max_seq_length,
+        fabric
     ) -> None:
+    model = fabric.setup_module(model)
+    optimizer = fabric.setup_optimizers(optimizer)
+    fabric.seed_everything(1337)
 
     longest_seq_length, longest_seq_ix = get_longest_seq_length(train_data)
     model.max_seq_length = longest_seq_length
@@ -75,25 +81,26 @@ def train(
         # with fabric.no_backward_sync(model, enabled=is_accumulating):
         # logits = model(input_ids, lm_head_chunk_size=128)
         input_ids = input_ids.to(model.device)
-
-
-        # print(model.device)
-        # print(input_ids.device)
-        logits = model(input_ids)
-        # import pdb
-        # pdb.set_trace()
-        # print(logits)
-        print(len(logits))
-        print(logits[0].size())
-        print(targets.size())
-        # shift the targets such that output n predicts token n+1
-        # logits[0] = logits[0][..., 1:]
-        # logits[-1] = logits[-1][..., :-1, :]
-        # loss = chunked_cross_entropy(logits[0][...,1:], targets[..., 1:].to(model.device))
-        loss = chunked_cross_entropy(logits, targets.to(model.device),128)
-        # print(loss)
-        # fabric.backward(loss / gradient_accumulation_iters)
-        loss.backward()
+        with fabric.no_backward_sync(model, enabled=is_accumulating):
+            # print(model.device)
+            # print(input_ids.device)
+            logits = model(input_ids)
+            # import pdb
+            # pdb.set_trace()
+            # print(logits)
+            # print(len(logits))
+            # print(logits[0].size())
+            # print(targets.size())
+            # shift the targets such that output n predicts token n+1
+            # logits[0] = logits[0][..., 1:]
+            logits[-1] = logits[-1][..., :-1, :]
+            loss = chunked_cross_entropy(logits, targets[..., 1:].to(model.device),128)
+            # loss = chunked_cross_entropy(logits[0][...,1:], targets[..., 1:].to(model.device))
+            # loss = chunked_cross_entropy(logits, targets.to(model.device),0)
+            # loss = chunked_cross_entropy(logits[0], targets.to(model.device),0)
+            # print(loss)
+            fabric.backward(loss / gradient_accumulation_iters)
+            # loss.backward()
 
         if not is_accumulating:
             optimizer.step()
@@ -134,24 +141,24 @@ if __name__ == "__main__":
     max_seq_length = args.max_length
     learning_rate = 1e-4
     weight_decay = 0.01
-    max_iters = 300000
-    batch_size = 64
+    max_iters = 150000
+    batch_size = 16
     micro_batch_size = 1
     warmup_steps = 500
     save_interval = 50000
     lora_alpha = 16
     lora_dropout = 0.05
-    lora_r = 8
+    lora_r = 16
     use_4bit = True
     use_nested_quant = False
-    bnb_4bit_compute_dtype = "float16"
+    bnb_4bit_compute_dtype = "bfloat16"
     bnb_4bit_quant_type = "nf4"
     # model, tokenizer = get_model("/home/ubuntu/workspace/tampm2/lit-gpt/checkpoints/mistralai/Mistral-7B-Instruct-v0.1")
     # model, tokenizer = get_model("mistralai/Mistral-7B-v0.1")
     # data_path = "/home/ubuntu/workspace/tampm2/lit-gpt/datasets/GAIR/lima"
     # data_path = "/lustre/scratch/client/scratch/llm_opt_neurips/datasets/helm/gsm"
     # data_path = "/lustre/scratch/client/scratch/llm_opt_neurips/datasets/synthetic/v2/raw_data"
-    qa_dataset = load_dataset(dataset_name)
+    qa_dataset = load_dataloader_all(dataset_name)
     # print(longest_seq_length)
     # print(longest_seq_ix)
     # print(qa_dataset)
@@ -176,6 +183,7 @@ if __name__ == "__main__":
         load_in_4bit=use_4bit,
         bnb_4bit_quant_type=bnb_4bit_quant_type,
         bnb_4bit_use_double_quant=use_nested_quant,
+        bnb_4bit_compute_dtype=bnb_4bit_compute_dtype,
     )
     model, tokenizer = get_model(bnb_config, model_name)
     print_trainable_parameters(model)
@@ -190,14 +198,14 @@ if __name__ == "__main__":
 
 
     train_data = qa_dataset.map(lambda samples: {"input_ids":tokenizer.encode(samples['instruction']+samples['input'],max_length=max_seq_length), "labels": tokenizer.encode(samples['output'],max_length=max_seq_length)})
-    longest_seq_length, longest_seq_ix = get_longest_seq_length(train_data["train"])
+    longest_seq_length, longest_seq_ix = get_longest_seq_length(train_data)
     # print(longest_seq_length)
     # print(longest_seq_ix)
     print(
         f"The longest sequence length in the train data is {longest_seq_length}, at {longest_seq_ix}"
     )
     # train_data = qa_dataset.map(lambda samples: {"input_ids":tokenizer.encode(samples['instruction']+samples['input'],max_length=2048), "labels": tokenizer.encode(samples['instruction']+samples['input']+samples['output'],max_length=2048)})
-    train_data = train_data['train']
+    train_data = train_data
     # from datasets import load_dataset
     # data = load_dataset("Abirate/english_quotes")
     # mapped_qa_dataset = data.map(lambda samples: tokenizer(samples["quote"]), batched=True)
@@ -206,20 +214,26 @@ if __name__ == "__main__":
     trainable_params = [p for p in model.parameters() if p.requires_grad]
 
     # if False:
-    import bitsandbytes as bnb
+    # import bitsandbytes as bnb
     # optimizer = bnb.optim.PagedAdamW(trainable_params, lr=learning_rate, weight_decay=weight_decay)
     optimizer = bnb.optim.Adam8bit(
                         trainable_params,
-                        lr=learning_rate,
+                        lr=learning_rate, weight_decay=weight_decay
                     )
     # else:
     # optimizer = torch.optim.AdamW(trainable_params, lr=learning_rate, weight_decay=weight_decay)
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=max_iters // batch_size)
     gradient_accumulation_iters = batch_size // micro_batch_size
-    accelerator = Accelerator(mixed_precision="bf16")
-    model,optimizer, scheduler = accelerator.prepare(model,optimizer, scheduler)
+    # accelerator = Accelerator(mixed_precision="bf16")
+    # model,optimizer, scheduler = accelerator.prepare(model,optimizer, scheduler)
     print_trainable_parameters(model)
     print(model)
+    strategy = "auto"
+    devices = 1
+    precision = "bf16-true"
+    plugins = None
+
+    fabric = L.Fabric(devices=devices, strategy=strategy, precision=precision, plugins=plugins)
 
     train(
         model,
@@ -231,7 +245,8 @@ if __name__ == "__main__":
        gradient_accumulation_iters,
        micro_batch_size,
        save_interval,
-        max_seq_length
+        max_seq_length,
+        fabric
     )
 
 
