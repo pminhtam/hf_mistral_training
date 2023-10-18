@@ -138,13 +138,25 @@ def get_model(bnb_config, model_name = "meta-llama/Llama-2-7b-chat-hf"):
     # model = AutoModelForCausalLM.from_config(config,quantization_config=bnb_config).int4()
     # model = WrapModel(config).cuda()
     # model = replace_8bit_linear(model).cuda()
-    model = AutoModelForCausalLM.from_pretrained(
+
+    # model = AutoModelForCausalLM.from_pretrained(
+    #     model_name,
+    #     torch_dtype=torch.bfloat16,
+    #     device_map='auto',
+    #     # peft_config=lora_config,
+    #     quantization_config=bnb_config,
+    # )
+    
+
+    # Test chunked model
+    model = MistralForCausalLM_chunked.from_pretrained(
         model_name,
         torch_dtype=torch.bfloat16,
         device_map='auto',
         # peft_config=lora_config,
         quantization_config=bnb_config,
     )
+    
     # print(model)
     # exit()
     # model_id = "meta-llama/Llama-2–7b-chat-hf"
