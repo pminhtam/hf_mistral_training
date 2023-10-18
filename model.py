@@ -156,7 +156,7 @@ def get_model(bnb_config, model_name = "meta-llama/Llama-2-7b-chat-hf"):
         # peft_config=lora_config,
         quantization_config=bnb_config,
     )
-    
+
     # print(model)
     # exit()
     # model_id = "meta-llama/Llama-2–7b-chat-hf"
@@ -326,6 +326,7 @@ class MistralForCausalLM_chunked(MistralPreTrainedModel):
         hidden_states = outputs[0]
 
         lm_head_chunk_size = 4
+        print("chunk_size", lm_head_chunk_size)
         if lm_head_chunk_size > 0:
             # chunk the lm head logits to reduce the peak memory used by autograd
             logits = [self.lm_head(x_i).float() for x_i in hidden_states.split(lm_head_chunk_size, dim=1)]
