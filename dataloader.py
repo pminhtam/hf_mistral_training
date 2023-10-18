@@ -1,4 +1,5 @@
 import torch
+import glob
 from datasets import load_dataset, Dataset
 from typing import Dict, List, Literal, Optional, Tuple
 import json
@@ -48,6 +49,20 @@ def get_longest_seq_length(data: List[Dict]) -> Tuple[int, int]:
   longest_seq_ix = lengths.index(longest_seq_length)
   return longest_seq_length, longest_seq_ix
 
+def load_dataloader_all(data_path):
+  """
+  Read JSONL -> convert HF datasets
+  """
+  data = []
+  domains = ['chat', 'cnn', 'complexqa', 'complexqa1', 'dolly', 'math', 'science']
+  for path in glob.glob(f'{data_path}/*.jsonl'):
+    with open(path) as fin:
+      for line in fin:
+        _data = json.loads(line)
+        data.append({'instruction': str(_data['instruction']), 'input': str(_data['input']), 'output': str(_data['output'])})
+  dataset = Dataset.from_list(data)
+  return dataset
+
 def get_batch(
       micro_batch_size, data: List[Dict], longest_seq_ix: Optional[int] = None, max_seq_length = 1024
 ) -> Tuple[torch.Tensor, torch.Tensor]:
@@ -67,8 +82,10 @@ def get_batch(
   labels = [torch.tensor(data[int(i)]["labels"]).type(torch.int64) for i in ix]
   # print(input_ids, labels)
   # this could be `longest_seq_length` to have a fixed size for all batches
-  # max_len = max(len(s) for s in input_ids)
-  max_len = max_seq_length
+  max_len_ids = max(len(s) for s in input_ids)
+  max_len_label = max(len(s) for s in labels)
+  max_len = max(max_len_ids, max_len_label)
+  # max_len = max_seq_length
 
   def pad_right(x, pad_id):
     # pad right based on the longest sequence

@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 from transformers import AutoTokenizer, AutoConfig, AutoModelForCausalLM, BitsAndBytesConfig, AutoModel
 from typing import List, Optional, Tuple, Union
+import types
 
 from transformers.models.mistral.configuration_mistral import MistralConfig
 from transformers.models.mistral.modeling_mistral import MistralForCausalLM
@@ -55,18 +56,24 @@ class WrapModel(MistralForCausalLM):
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
 
         # decoder outputs consists of (dec_features, layer_state, dec_hidden, dec_attn)
+        # outputs = self.model(
+        #     input_ids=input_ids,
+        #     attention_mask=attention_mask,
+        #     position_ids=position_ids,
+        #     past_key_values=past_key_values,
+        #     inputs_embeds=inputs_embeds,
+        #     use_cache=False,
+        #     output_attentions=False,
+        #     output_hidden_states=False,
+        #     return_dict=return_dict,
+        # )
         outputs = self.model(
             input_ids=input_ids,
-            attention_mask=attention_mask,
-            position_ids=position_ids,
-            past_key_values=past_key_values,
-            inputs_embeds=inputs_embeds,
-            use_cache=use_cache,
-            output_attentions=output_attentions,
-            output_hidden_states=output_hidden_states,
+            use_cache=False,
+            output_attentions=False,
+            output_hidden_states=False,
             return_dict=return_dict,
         )
-
         hidden_states = outputs[0]
         # logits = self.lm_head(hidden_states)
         # logits = logits.float()
@@ -74,6 +81,43 @@ class WrapModel(MistralForCausalLM):
         return [self.lm_head(x_i) for x_i in hidden_states.split(lm_head_chunk_size, dim=1)]
         # return logits
 
+
+def forward_new(self,
+    input_ids: torch.LongTensor = None,
+    attention_mask: Optional[torch.Tensor] = None,
+    position_ids: Optional[torch.LongTensor] = None,
+    past_key_values: Optional[List[torch.FloatTensor]] = None,
+    inputs_embeds: Optional[torch.FloatTensor] = None,
+    labels: Optional[torch.LongTensor] = None,
+    use_cache: Optional[bool] = None,
+    output_attentions: Optional[bool] = None,
+    output_hidden_states: Optional[bool] = None,
+    return_dict: Optional[bool] = None,
+):
+    output_attentions = output_attentions if output_attentions is not None else self.config.output_attentions
+    output_hidden_states = (
+        output_hidden_states if output_hidden_states is not None else self.config.output_hidden_states
+    )
+    return_dict = return_dict if return_dict is not None else self.config.use_return_dict
+
+    # decoder outputs consists of (dec_features, layer_state, dec_hidden, dec_attn)
+    outputs = self.model(
+        input_ids=input_ids,
+        attention_mask=attention_mask,
+        position_ids=position_ids,
+        past_key_values=past_key_values,
+        inputs_embeds=inputs_embeds,
+        use_cache=False,
+        output_attentions=False,
+        output_hidden_states=False,
+        return_dict=return_dict,
+    )
+    hidden_states = outputs[0]
+    # logits = self.lm_head(hidden_states)
+    # logits = logits.float()
+    lm_head_chunk_size = 128
+    return [self.lm_head(x_i) for x_i in hidden_states.split(lm_head_chunk_size, dim=1)]
+    # return logits
 class CastOutputToFloat(nn.Sequential):
     def forward(self, x): return super().forward(x).to(torch.float32)
 
@@ -85,21 +129,21 @@ def get_model(bnb_config, model_name = "meta-llama/Llama-2-7b-chat-hf"):
     print(config.architectures)
     # config.architectures = ["WrapModel"]
     # print(config)
-    model = WrapModel.from_pretrained(model_name,config = config,
-                                                   torch_dtype=torch.bfloat16,
-                                                   device_map='auto',
-                                                   quantization_config=bnb_config,
-                                               )
+    # model = WrapModel.from_pretrained(model_name,config = config,
+    #                                                torch_dtype=torch.bfloat16,
+    #                                                device_map='auto',
+    #                                                quantization_config=bnb_config,
+    #                                            )
     # model = AutoModelForCausalLM.from_config(config,quantization_config=bnb_config).int4()
     # model = WrapModel(config).cuda()
     # model = replace_8bit_linear(model).cuda()
-    # model = AutoModelForCausalLM.from_pretrained(
-    #     model_name,
-    #     torch_dtype=torch.bfloat16,
-    #     device_map='auto',
-    #     # peft_config=lora_config,
-    #     quantization_config=bnb_config,
-    # )
+    model = AutoModelForCausalLM.from_pretrained(
+        model_name,
+        torch_dtype=torch.bfloat16,
+        device_map='auto',
+        # peft_config=lora_config,
+        quantization_config=bnb_config,
+    )
     # print(model)
     # exit()
     # model_id = "meta-llama/Llama-2–7b-chat-hf"
@@ -125,7 +169,10 @@ def get_model(bnb_config, model_name = "meta-llama/Llama-2-7b-chat-hf"):
     # model.gradient_checkpointing_enable()  # reduce number of stored activations
     # model.enable_input_require_grads()
 
-
+    # model.config.window = 256
+    model.forward = types.MethodType(
+        forward_new, model
+    )
     # model.lm_head = CastOutputToFloat(model.lm_head)
     # model.gradient_checkpointing_enable()
     # model = WrapMistral(model)
