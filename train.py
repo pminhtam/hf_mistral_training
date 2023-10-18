@@ -25,6 +25,7 @@ from utils import print_trainable_parameters
 from losses import chunked_cross_entropy
 
 import json
+import pickle
 
 # os.environ["CUDA_VISIBLE_DEVICES"]="7"
 torch.cuda.is_available()
@@ -198,11 +199,16 @@ if __name__ == "__main__":
     print(model.num_parameters())
     print_trainable_parameters(model)
 
-    if os.path.exists("train_data.json"):
-        train_data = json.load(open("train_data.json", "r"))
+    pkl_train_file = "train_data.pkl"
+    if os.path.exists(pkl_train_file):
+        # pickle.dump(train_data, open("train_data.pkl", "wb"), protocol=pickle.HIGHEST_PROTOCOL)
+        train_data = pickle.load(open(pkl_train_file, "rb"))
+        # train_data = json.load(open("train_data.json", "r"))
     else:
         train_data = qa_dataset.map(lambda samples: {"input_ids":tokenizer.encode(samples['instruction']+samples['input'],max_length=max_seq_length), "labels": tokenizer.encode(samples['output'],max_length=max_seq_length)})
-        json.dump(open("train_data.json", "w"), train_data)
+        # json.dump(open("train_data.json", "w"), train_data)
+        pickle.dump(train_data, open(pkl_train_file, "wb"), protocol=pickle.HIGHEST_PROTOCOL)
+
     longest_seq_length, longest_seq_ix = get_longest_seq_length(train_data)
     # print(longest_seq_length)
     # print(longest_seq_ix)
