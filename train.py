@@ -16,6 +16,7 @@ from pathlib import Path
 from peft import LoraConfig, get_peft_model
 from peft import prepare_model_for_kbit_training
 from model import get_model
+import lightning as L
 
 
 from dataloader import create_prompt, get_longest_seq_length, get_batch
@@ -26,7 +27,7 @@ from losses import chunked_cross_entropy
 torch.cuda.is_available()
 
 # pip install git+https://github.com/huggingface/transformers
-
+torch.set_float32_matmul_precision('medium')
 def parse_args():
     parser = argparse.ArgumentParser(description="Mistral training")
     parser.add_argument('--dataset', type=str, default="/llm_opt_neurips/datasets/synthetic/v2/raw_data", help="dataset path")
@@ -46,8 +47,12 @@ def train(
         gradient_accumulation_iters,
         micro_batch_size,
         save_interval,
-        max_seq_length
+        max_seq_length,
+        fabric
     ) -> None:
+    model = fabric.setup_module(model)
+    optimizer = fabric.setup_optimizers(optimizer)
+    fabric.seed_everything(1337)
 
     longest_seq_length, longest_seq_ix = get_longest_seq_length(train_data)
     model.max_seq_length = longest_seq_length
@@ -75,25 +80,25 @@ def train(
         # with fabric.no_backward_sync(model, enabled=is_accumulating):
         # logits = model(input_ids, lm_head_chunk_size=128)
         input_ids = input_ids.to(model.device)
-
-
-        # print(model.device)
-        # print(input_ids.device)
-        logits = model(input_ids)
-        # import pdb
-        # pdb.set_trace()
-        # print(logits)
-        print(len(logits))
-        print(logits[0].size())
-        print(targets.size())
-        # shift the targets such that output n predicts token n+1
-        # logits[0] = logits[0][..., 1:]
-        # logits[-1] = logits[-1][..., :-1, :]
-        # loss = chunked_cross_entropy(logits[0][...,1:], targets[..., 1:].to(model.device))
-        loss = chunked_cross_entropy(logits, targets.to(model.device),128)
-        # print(loss)
-        # fabric.backward(loss / gradient_accumulation_iters)
-        loss.backward()
+        with fabric.no_backward_sync(model, enabled=is_accumulating):
+            # print(model.device)
+            # print(input_ids.device)
+            logits = model(input_ids)
+            # import pdb
+            # pdb.set_trace()
+            # print(logits)
+            # print(len(logits))
+            # print(logits[0].size())
+            # print(targets.size())
+            # shift the targets such that output n predicts token n+1
+            # logits[0] = logits[0][..., 1:]
+            logits[-1] = logits[-1][..., :-1, :]
+            loss = chunked_cross_entropy(logits, targets[..., 1:].to(model.device),128)
+            # loss = chunked_cross_entropy(logits[0][...,1:], targets[..., 1:].to(model.device))
+            # loss = chunked_cross_entropy(logits, targets.to(model.device),0)
+            # print(loss)
+            fabric.backward(loss / gradient_accumulation_iters)
+            # loss.backward()
 
         if not is_accumulating:
             optimizer.step()
@@ -206,20 +211,26 @@ if __name__ == "__main__":
     trainable_params = [p for p in model.parameters() if p.requires_grad]
 
     # if False:
-    import bitsandbytes as bnb
+    # import bitsandbytes as bnb
     # optimizer = bnb.optim.PagedAdamW(trainable_params, lr=learning_rate, weight_decay=weight_decay)
-    optimizer = bnb.optim.Adam8bit(
-                        trainable_params,
-                        lr=learning_rate,
-                    )
+    # optimizer = bnb.optim.Adam8bit(
+    #                     trainable_params,
+    #                     lr=learning_rate,
+    #                 )
     # else:
-    # optimizer = torch.optim.AdamW(trainable_params, lr=learning_rate, weight_decay=weight_decay)
+    optimizer = torch.optim.AdamW(trainable_params, lr=learning_rate, weight_decay=weight_decay)
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=max_iters // batch_size)
     gradient_accumulation_iters = batch_size // micro_batch_size
     accelerator = Accelerator(mixed_precision="bf16")
     model,optimizer, scheduler = accelerator.prepare(model,optimizer, scheduler)
     print_trainable_parameters(model)
     print(model)
+    strategy = "auto"
+    devices = 1
+    precision = "bf16-true"
+    plugins = None
+
+    fabric = L.Fabric(devices=devices, strategy=strategy, precision=precision, plugins=plugins)
 
     train(
         model,
@@ -231,7 +242,8 @@ if __name__ == "__main__":
        gradient_accumulation_iters,
        micro_batch_size,
        save_interval,
-        max_seq_length
+        max_seq_length,
+        fabric
     )
 
 
