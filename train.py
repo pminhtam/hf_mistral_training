@@ -24,6 +24,8 @@ from dataloader import create_prompt, get_longest_seq_length, get_batch, load_da
 from utils import print_trainable_parameters
 from losses import chunked_cross_entropy
 
+import json
+
 # os.environ["CUDA_VISIBLE_DEVICES"]="7"
 torch.cuda.is_available()
 
@@ -196,8 +198,11 @@ if __name__ == "__main__":
     print(model.num_parameters())
     print_trainable_parameters(model)
 
-
-    train_data = qa_dataset.map(lambda samples: {"input_ids":tokenizer.encode(samples['instruction']+samples['input'],max_length=max_seq_length), "labels": tokenizer.encode(samples['output'],max_length=max_seq_length)})
+    if os.path.exists("train_data.json"):
+        train_data = json.load(open("train_data.json", "r"))
+    else:
+        train_data = qa_dataset.map(lambda samples: {"input_ids":tokenizer.encode(samples['instruction']+samples['input'],max_length=max_seq_length), "labels": tokenizer.encode(samples['output'],max_length=max_seq_length)})
+        json.dump(open("train_data.json", "w"), train_data)
     longest_seq_length, longest_seq_ix = get_longest_seq_length(train_data)
     # print(longest_seq_length)
     # print(longest_seq_ix)
