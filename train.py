@@ -83,13 +83,14 @@ def train(
         # import pdb
         # pdb.set_trace()
         # print(logits)
-        # print(logits.size())
-        # print(targets.size())
+        print(len(logits))
+        print(logits[0].size())
+        print(targets.size())
         # shift the targets such that output n predicts token n+1
         # logits[0] = logits[0][..., 1:]
         # logits[-1] = logits[-1][..., :-1, :]
         # loss = chunked_cross_entropy(logits[0][...,1:], targets[..., 1:].to(model.device))
-        loss = chunked_cross_entropy(logits[0], targets.to(model.device))
+        loss = chunked_cross_entropy(logits, targets.to(model.device),128)
         # print(loss)
         # fabric.backward(loss / gradient_accumulation_iters)
         loss.backward()
@@ -160,12 +161,13 @@ if __name__ == "__main__":
         lora_alpha=lora_alpha,
         target_modules=["q_proj","v_proj",
                         "k_proj",
-                        # "o_proj",
+                        "o_proj",
                         "gate_proj",
                         "up_proj",
                         "down_proj",
                         # "mlp",
-                        "lm_head"],
+                        "lm_head"
+                        ],
         lora_dropout=lora_dropout,
         bias="none",
         task_type="CAUSAL_LM"
