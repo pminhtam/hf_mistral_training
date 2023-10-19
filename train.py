@@ -80,6 +80,7 @@ def train(
 
         input_ids, targets = get_batch(micro_batch_size, train_data, longest_seq_ix if iter_num == 0 else None,max_seq_length)
         print("input_ids", input_ids)
+        print("input_ids shape", input_ids.shape)
 
         is_accumulating = (iter_num + 1) % gradient_accumulation_iters != 0
         # with fabric.no_backward_sync(model, enabled=is_accumulating):
