@@ -16,6 +16,8 @@ from transformers.utils import (
 import torch.nn as nn
 from accelerate import init_empty_weights
 import bitsandbytes as bnb
+from utils import print_trainable_parameters
+
 
 from transformers.models.mistral.modeling_mistral import MISTRAL_INPUTS_DOCSTRING,CausalLMOutputWithPast,_CONFIG_FOR_DOC
 def replace_8bit_linear(model, threshold=6.0, module_to_not_convert="lm_head"):
@@ -309,6 +311,8 @@ class MistralForCausalLM_chunked(MistralPreTrainedModel):
             output_hidden_states if output_hidden_states is not None else self.config.output_hidden_states
         )
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
+
+        print_trainable_parameters(self.model)
 
         # decoder outputs consists of (dec_features, layer_state, dec_hidden, dec_attn)
         outputs = self.model(
