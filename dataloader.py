@@ -85,7 +85,7 @@ def get_batch(
   max_len_ids = max(len(s) for s in input_ids)
   max_len_label = max(len(s) for s in labels)
   max_len = max(max_len_ids, max_len_label)
-  # max_len = max_seq_length
+  max_len = 1000
 
   def pad_right(x, pad_id):
     # pad right based on the longest sequence
