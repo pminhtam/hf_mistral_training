@@ -98,6 +98,6 @@ def get_batch(
   # print("63  x.shape   : ",x.shape)
   y = torch.stack([pad_right(x, pad_id=-1) for x in labels])
   # print("65  y.shape  : ",y.shape)
-  x = x[,:1000,]
+  x = x[:,:1000,:]
   return x, y
 
