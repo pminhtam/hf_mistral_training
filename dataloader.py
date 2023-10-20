@@ -85,7 +85,6 @@ def get_batch(
   max_len_ids = max(len(s) for s in input_ids)
   max_len_label = max(len(s) for s in labels)
   max_len = max(max_len_ids, max_len_label)
-  max_len = 1000
 
   def pad_right(x, pad_id):
     # pad right based on the longest sequence
@@ -99,6 +98,6 @@ def get_batch(
   # print("63  x.shape   : ",x.shape)
   y = torch.stack([pad_right(x, pad_id=-1) for x in labels])
   # print("65  y.shape  : ",y.shape)
-
+  x = x[,:1000,]
   return x, y
 
