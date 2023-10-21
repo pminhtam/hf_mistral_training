@@ -85,6 +85,7 @@ def get_batch(
   max_len_ids = max(len(s) for s in input_ids)
   max_len_label = max(len(s) for s in labels)
   max_len = max(max_len_ids, max_len_label)
+  max_len = min(max_len, max_seq_length)
   # max_len = max_seq_length
 
   def pad_right(x, pad_id):

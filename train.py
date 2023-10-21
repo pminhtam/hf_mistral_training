@@ -108,7 +108,10 @@ def train(
             if step_count > warmup_steps:
                 scheduler.step()
             step_count += 1
-
+            if step_count % save_interval == 0:
+                checkpoint_path = out_dir + f"/iter-{iter_num:05d}-step-{step_count:06d}-ckpt"
+                model.save_pretrained(checkpoint_path)
+                print(f" save checkpoint at {checkpoint_path} ")
         t1 = time.perf_counter()
         total_lengths += input_ids.size(1)
 
@@ -119,10 +122,12 @@ def train(
                 f" {(t1 - iter_t0) * 1000:.2f}ms{' (optimizer.step)' if not is_accumulating else ''}"
             )
 
-
-        if not is_accumulating and step_count % save_interval == 0:
-            # checkpoint_path = out_dir / f"iter-{iter_num:06d}-ckpt.pth"
-            model.save_pretrained(out_dir)
+    checkpoint_path = out_dir + "/last-ckpt"
+    model.save_pretrained(checkpoint_path)
+    print(f" save checkpoint at {checkpoint_path} ")
+        # if step_count % save_interval == 0:
+        #     checkpoint_path = out_dir + f"/iter-{iter_num:06d}-ckpt.pth"
+        #     model.save_pretrained(checkpoint_path)
 """
 LLama2
 trainable params: 1048576 || all params: 3501461504 || trainable%: 0.029946809319540645
@@ -145,7 +150,7 @@ if __name__ == "__main__":
     batch_size = 16
     micro_batch_size = 1
     warmup_steps = 500
-    save_interval = 50000
+    save_interval = 1000
     lora_alpha = 16
     lora_dropout = 0.05
     lora_r = 16
@@ -153,6 +158,10 @@ if __name__ == "__main__":
     use_nested_quant = False
     bnb_4bit_compute_dtype = "bfloat16"
     bnb_4bit_quant_type = "nf4"
+    if not os.path.exists(f'{args.output}'):
+        os.makedirs(f'{args.output}')
+    with open(f'{args.output}/args.txt', 'w') as fout:
+        fout.write(str(args))
     # model, tokenizer = get_model("/home/ubuntu/workspace/tampm2/lit-gpt/checkpoints/mistralai/Mistral-7B-Instruct-v0.1")
     # model, tokenizer = get_model("mistralai/Mistral-7B-v0.1")
     # data_path = "/home/ubuntu/workspace/tampm2/lit-gpt/datasets/GAIR/lima"
@@ -166,14 +175,15 @@ if __name__ == "__main__":
     config = LoraConfig(
         r=lora_r,
         lora_alpha=lora_alpha,
-        target_modules=["q_proj","v_proj",
-                        "k_proj",
-                        "o_proj",
-                        "gate_proj",
-                        "up_proj",
-                        "down_proj",
+        target_modules=["q_proj",
+                        "v_proj",
+                        # "k_proj",
+                        # "o_proj",
+                        # "gate_proj",
+                        # "up_proj",
+                        # "down_proj",
                         # "mlp",
-                        "lm_head"
+                        # "lm_head"
                         ],
         lora_dropout=lora_dropout,
         bias="none",
@@ -197,7 +207,9 @@ if __name__ == "__main__":
     print_trainable_parameters(model)
 
 
-    train_data = qa_dataset.map(lambda samples: {"input_ids":tokenizer.encode(samples['instruction']+samples['input'],max_length=max_seq_length), "labels": tokenizer.encode(samples['output'],max_length=max_seq_length)})
+    train_data = qa_dataset.map(lambda samples: {"input_ids":tokenizer.encode(samples['instruction']+samples['input'],max_length=max_seq_length, truncation=True),
+                                                 "labels": tokenizer.encode(samples['output'],max_length=max_seq_length, truncation=True)
+                                                 })
     longest_seq_length, longest_seq_ix = get_longest_seq_length(train_data)
     # print(longest_seq_length)
     # print(longest_seq_ix)
