@@ -330,7 +330,7 @@ class MistralForCausalLM_chunked(MistralPreTrainedModel):
 
         hidden_states = outputs[0]
 
-        lm_head_chunk_size = 0
+        lm_head_chunk_size = 128
         print("chunk_size", lm_head_chunk_size)
         loss = None
 
@@ -362,13 +362,14 @@ class MistralForCausalLM_chunked(MistralPreTrainedModel):
             output = (logits,) + outputs[1:]
             return (loss,) + output if loss is not None else output
 
-        return CausalLMOutputWithPast(
-            loss=loss,
-            logits=logits,
-            past_key_values=outputs.past_key_values,
-            hidden_states=outputs.hidden_states,
-            attentions=outputs.attentions,
-        )
+        return loss
+        # return CausalLMOutputWithPast(
+        #     loss=loss,
+        #     logits=logits,
+        #     past_key_values=outputs.past_key_values,
+        #     hidden_states=outputs.hidden_states,
+        #     attentions=outputs.attentions,
+        # )
 
     def prepare_inputs_for_generation(
         self, input_ids, past_key_values=None, attention_mask=None, inputs_embeds=None, **kwargs

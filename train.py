@@ -90,7 +90,7 @@ def train(
             # print(model.device)
             # print(input_ids.device)
             # output = model(input_ids)
-            logits = model(input_ids)
+            loss = model(input_ids)
             # loss = output.loss
             # print("loss type", type(loss))
             # print("loss[0]", loss)
@@ -103,8 +103,8 @@ def train(
             # shift the targets such that output n predicts token n+1
             # logits[0] = logits[0][..., 1:]
 
-            logits[-1] = logits[-1][..., :-1, :]
-            loss = chunked_cross_entropy(logits, targets[..., 1:].to(model.device),128)
+            # logits[-1] = logits[-1][..., :-1, :]
+            # loss = chunked_cross_entropy(logits, targets[..., 1:].to(model.device),128)
 
             # loss = chunked_cross_entropy(logits[0][...,1:], targets[..., 1:].to(model.device))
             # loss = chunked_cross_entropy(logits, targets.to(model.device),0)
