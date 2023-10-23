@@ -330,7 +330,7 @@ class MistralForCausalLM_chunked(MistralPreTrainedModel):
 
         hidden_states = outputs[0]
 
-        lm_head_chunk_size = 4
+        lm_head_chunk_size = 0
         print("chunk_size", lm_head_chunk_size)
         loss = None
 
