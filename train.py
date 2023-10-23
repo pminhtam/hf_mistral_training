@@ -89,7 +89,7 @@ def train(
         with fabric.no_backward_sync(model, enabled=is_accumulating):
             # print(model.device)
             # print(input_ids.device)
-            loss, _ = model(input_ids)
+            loss = model(input_ids)["loss"]
             # import pdb
             # pdb.set_trace()
             # print(logits)
