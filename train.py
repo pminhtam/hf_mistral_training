@@ -92,7 +92,7 @@ def train(
             output = model(input_ids)
             loss = output.loss
             print("loss type", type(loss))
-            print("loss[0]", loss[0])
+            print("loss[0]", loss)
             # import pdb
             # pdb.set_trace()
             # print(logits)

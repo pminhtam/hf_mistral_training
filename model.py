@@ -343,6 +343,7 @@ class MistralForCausalLM_chunked(MistralPreTrainedModel):
                 shift_logits = shift_logits.split(lm_head_chunk_size, dim=1)
                 shift_labels = labels[..., 1:].contiguous()
                 loss = chunked_cross_entropy(shift_logits, shift_labels)
+                print("loss entropy", loss)
         else:
             logits = self.lm_head(hidden_states)
             logits = logits.float()
