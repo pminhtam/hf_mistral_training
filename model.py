@@ -332,6 +332,8 @@ class MistralForCausalLM_chunked(MistralPreTrainedModel):
 
         lm_head_chunk_size = 4
         print("chunk_size", lm_head_chunk_size)
+        loss = None
+
         if lm_head_chunk_size > 0:
             # chunk the lm head logits to reduce the peak memory used by autograd
             logits = [self.lm_head(x_i).float() for x_i in hidden_states.split(lm_head_chunk_size, dim=1)]
@@ -344,7 +346,6 @@ class MistralForCausalLM_chunked(MistralPreTrainedModel):
         else:
             logits = self.lm_head(hidden_states)
             logits = logits.float()
-            loss = None
             if labels is not None:
                 # Shift so that tokens < n predict n
                 shift_logits = logits[..., :-1, :].contiguous()
