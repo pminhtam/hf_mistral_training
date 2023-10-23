@@ -89,7 +89,7 @@ def train(
         with fabric.no_backward_sync(model, enabled=is_accumulating):
             # print(model.device)
             # print(input_ids.device)
-            logits = model(input_ids)
+            loss, _ = model(input_ids)
             # import pdb
             # pdb.set_trace()
             # print(logits)
@@ -98,8 +98,10 @@ def train(
             # print(targets.size())
             # shift the targets such that output n predicts token n+1
             # logits[0] = logits[0][..., 1:]
-            logits[-1] = logits[-1][..., :-1, :]
-            loss = chunked_cross_entropy(logits, targets[..., 1:].to(model.device),128)
+
+            # logits[-1] = logits[-1][..., :-1, :]
+            # loss = chunked_cross_entropy(logits, targets[..., 1:].to(model.device),128)
+
             # loss = chunked_cross_entropy(logits[0][...,1:], targets[..., 1:].to(model.device))
             # loss = chunked_cross_entropy(logits, targets.to(model.device),0)
             # loss = chunked_cross_entropy(logits[0], targets.to(model.device),0)
