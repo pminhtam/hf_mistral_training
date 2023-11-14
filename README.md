@@ -32,6 +32,7 @@ python infer_origin.py
 
 ```shell
 pip install git+https://github.com/huggingface/transformers
+pip install git+https://github.com/huggingface/trl
 ```
 datasets
 peft
@@ -39,3 +40,9 @@ trl
 bitsandbytes
 scipy
 
+
+datasets peft trl bitsandbytes scipy
+apt install nvidia-cuda-toolkit
+
+[//]: # (pip install collie-lm)
+[//]: # (pip install git+https://github.com/OpenLMLab/collie)
